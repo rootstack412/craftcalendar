@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>All Events - Craft Calendar</title>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --paper:#f5efe0;--paper-dark:#ede3cc;--paper-rule:#d8ccb0;--ink:#2c2410;--ink-muted:#6b5b3e;--accent:#8b4513;--green:#3a7a3a;--red:#9b3a2a; }
+        *{box-sizing:border-box;}
+        body{background:#e0d8c3;font-family:'Source Sans 3',sans-serif;color:var(--ink);margin:0;padding:20px;}
+        .craft-page{max-width:1300px;margin:0 auto;background:var(--paper);padding:2.5rem;border-radius:3px;box-shadow:4px 4px 0 #a89070;}
+        .craft-header{border-bottom:2px solid var(--accent);margin-bottom:1.5rem;padding-bottom:1rem;}
+        h1{font-family:'Playfair Display',serif;color:var(--accent);margin:0 0 1rem 0;font-size:2rem;}
+        .filter-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem;}
+        .filter-bar-row2{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:.6rem;margin-bottom:.75rem;align-items:end;}
+        .filter-group{display:flex;flex-direction:column;gap:3px;}
+        .filter-group label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:600;}
+        input[type="text"],input[type="number"],select{font-family:'Source Sans 3',sans-serif;font-size:.875rem;color:var(--ink);background:var(--paper);border:1px solid var(--paper-rule);border-radius:3px;padding:.45rem .65rem;outline:none;width:100%;transition:border-color .15s;}
+        input:focus,select:focus{border-color:var(--accent);}
+        select{background:var(--paper-dark);cursor:pointer;}
+        .dist-row{display:flex;gap:.4rem;align-items:center;}
+        .dist-row input[type="text"]{flex:1;}
+        .dist-row input[type="number"]{width:80px;flex:none;}
+        .dist-row span{font-size:.8rem;color:var(--ink-muted);white-space:nowrap;}
+        .btn-clear{font-family:'Source Sans 3',sans-serif;font-size:.85rem;color:var(--ink-muted);background:none;border:1px solid var(--paper-rule);border-radius:3px;padding:.45rem .9rem;cursor:pointer;white-space:nowrap;transition:border-color .15s,color .15s;}
+        .btn-clear:hover{border-color:var(--accent);color:var(--accent);}
+        .dist-status{font-size:.78rem;color:var(--ink-muted);font-style:italic;margin-bottom:.4rem;min-height:1.1rem;}
+        .dist-status.error{color:var(--red);font-style:normal;}
+        .dist-status.ok{color:var(--green);font-style:normal;}
+        .results-count{font-size:.8rem;color:var(--ink-muted);font-style:italic;margin-bottom:.5rem;}
+        table{width:100%;border-collapse:collapse;margin-top:.25rem;font-size:.875rem;}
+        th{background:var(--paper-dark);color:var(--ink-muted);text-align:left;padding:.65rem .6rem;text-transform:uppercase;font-size:.7rem;letter-spacing:.04em;cursor:pointer;user-select:none;white-space:nowrap;}
+        th:hover{color:var(--accent);}
+        th .si{margin-left:3px;opacity:.35;}
+        th.sorted .si{opacity:1;color:var(--accent);}
+        td{padding:.6rem .6rem;border-bottom:1px solid var(--paper-rule);vertical-align:middle;}
+        tbody tr:hover{background:#f0e8d0;}
+        tbody tr.hidden{display:none;}
+        .badge{display:inline-block;font-size:.68rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:3px;white-space:nowrap;}
+        .badge-month{background:var(--paper-dark);color:var(--ink-muted);border:1px solid var(--paper-rule);}
+        .badge-confirmed{background:#d4edda;color:#1e5c2e;border:1px solid #a8d5b5;}
+        .badge-unconfirmed{background:#fff3cd;color:#7a5a00;border:1px solid #f0d080;}
+        .badge-indoor{background:#ddeeff;color:#1a4a7a;border:1px solid #aaccee;}
+        .badge-outdoor{background:#e8f5e0;color:#2a5a1a;border:1px solid #b0d898;}
+        .badge-both{background:#ede8fa;color:#4a2a8a;border:1px solid #c0aae8;}
+        .price-cell{font-weight:600;white-space:nowrap;}
+        .price-free{color:var(--green);}
+        .price-low{color:#4a6a2a;}
+        .price-mid{color:var(--ink-muted);}
+        .price-high{color:var(--red);}
+        .dist-cell{white-space:nowrap;color:var(--ink-muted);font-size:.82rem;}
+        .dist-near{color:var(--green);font-weight:600;}
+        .dist-far{color:var(--red);}
+        .event-link{color:var(--accent);text-decoration:none;}
+        .event-link:hover{text-decoration:underline;}
+        .location-cell{white-space:nowrap;}
+        .no-results{text-align:center;padding:2.5rem;color:var(--ink-muted);font-style:italic;display:none;}
+        .age-chip{font-size:.68rem;color:var(--ink-muted);border:1px solid var(--paper-rule);border-radius:10px;padding:1px 6px;margin-left:4px;white-space:nowrap;}
+        @media(max-width:900px){.filter-bar{grid-template-columns:1fr 1fr;}.filter-bar-row2{grid-template-columns:1fr 1fr;}}
+        @media(max-width:600px){.filter-bar,.filter-bar-row2{grid-template-columns:1fr;}.craft-page{padding:1rem;}}
+    </style>
+</head>
+<body>
+<div class="craft-page">
+    <div class="craft-header">
+        <h1>✦ All Events</h1>
+        <div class="filter-bar">
+            <div class="filter-group"><label>Search</label><input type="text" id="f-search" placeholder="Event name…" /></div>
+            <div class="filter-group"><label>Month</label>
+                <select id="f-month">
+                    <option value="">All months</option>
+                    <option value="03">March</option><option value="04">April</option><option value="05">May</option>
+                    <option value="06">June</option><option value="07">July</option><option value="08">August</option>
+                    <option value="09">September</option><option value="10">October</option>
+                    <option value="11">November</option><option value="12">December</option>
+                </select>
+            </div>
+            <div class="filter-group"><label>State</label>
+                <select id="f-state">
+                    <option value="">All states</option>
+                    <option value="NJ">New Jersey</option><option value="PA">Pennsylvania</option><option value="DE">Delaware</option>
+                </select>
+            </div>
+            <div class="filter-group"><label>Confirmed Dates</label>
+                <select id="f-confirmed">
+                    <option value="">All</option>
+                    <option value="yes">Confirmed only</option><option value="no">Unconfirmed only</option>
+                </select>
+            </div>
+        </div>
+        <div class="filter-bar-row2">
+            <div class="filter-group">
+                <label>Distance from (city &amp; state or zip code)</label>
+                <div class="dist-row">
+                    <input type="text" id="f-origin" placeholder="e.g. Glassboro NJ or 08028" />
+                    <span>within</span>
+                    <input type="number" id="f-miles" min="1" max="500" placeholder="mi" />
+                    <span>miles</span>
+                </div>
+            </div>
+            <div class="filter-group"><label>Max Table Price ($)</label><input type="number" id="f-maxprice" min="0" placeholder="e.g. 100" /></div>
+            <div class="filter-group"><label>Setting</label>
+                <select id="f-setting">
+                    <option value="">All settings</option>
+                    <option value="indoor">Indoor</option><option value="outdoor">Outdoor</option><option value="both">Indoor + Outdoor</option>
+                </select>
+            </div>
+            <button class="btn-clear" id="btn-clear">✕ Clear all</button>
+        </div>
+        <div class="dist-status" id="dist-status"></div>
+    </div>
+    <div class="results-count" id="results-count"></div>
+    <table>
+        <thead>
+            <tr>
+                <th onclick="sortBy('title')" id="th-title">Event <i class="si">↕</i></th>
+                <th onclick="sortBy('date')" id="th-date" class="sorted">Date <i class="si">↑</i></th>
+                <th onclick="sortBy('price')" id="th-price">Table Price <i class="si">↕</i></th>
+                <th>Size</th>
+                <th onclick="sortBy('location')" id="th-location">Location <i class="si">↕</i></th>
+                <th>Setting</th>
+                <th>Status</th>
+                <th onclick="sortBy('dist')" id="th-dist">Distance <i class="si">↕</i></th>
+            </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+    </table>
+    <div class="no-results" id="no-results">No events match your filters.</div>
+</div>
+<script>
+const EVENTS=[{"title":"Washington Township PTO Craft Fair","date":"2026-03-07","enddate":"2026-03-07","price":80,"size":"10 x 10","indoor":true,"outdoor":false,"city":"Washington Township","state":"NJ","zip":"08028","confirmed":true,"link":"https://www.facebook.com/WTHSPTO","age":5,"lat":39.6951,"lng":-75.0552},{"title":"NerdForce Fan Fest","date":"2026-03-15","enddate":"2026-03-15","price":100,"size":"10 x 10","indoor":true,"outdoor":false,"city":"Glassboro","state":"NJ","zip":"08028","confirmed":true,"link":"https://www.nerdforcefanfest.com/","age":2,"lat":39.7026,"lng":-75.1116},{"title":"Rancocas Woods","date":"2026-03-28","enddate":"2026-03-28","price":80,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mount Laurel","state":"NJ","zip":"08054","confirmed":false,"link":"https://rancocaswoodseventsnshops.com/events","age":10,"lat":39.9312,"lng":-74.8988},{"title":"Easter at Masso's","date":"2026-04-04","enddate":"2026-04-04","price":45,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Glassboro","state":"NJ","zip":"08028","confirmed":true,"link":"http://www.apevents.com","age":2,"lat":39.7026,"lng":-75.1116},{"title":"GeekFest","date":"2026-04-04","enddate":"2026-04-04","price":100,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mullica Hill","state":"NJ","zip":"08062","confirmed":true,"link":"http://www.sjgeekfest.com","age":11,"lat":39.7376,"lng":-75.236},{"title":"Spring with AP Events","date":"2026-04-18","enddate":"2026-04-18","price":100,"size":"10 x 10","indoor":true,"outdoor":true,"city":"Glassboro","state":"NJ","zip":"08028","confirmed":true,"link":"http://www.apevents.com","age":2,"lat":39.7026,"lng":-75.1116},{"title":"BBBS PTA Spring Festival","date":"2026-04-19","enddate":"2026-04-19","price":50,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Monroe","state":"NJ","zip":"08831","confirmed":true,"link":"https://docs.google.com/forms/d/e/1FAIpQLSf22s-fo9Um-l5RKdxEU3DBT3cdXBA9W-8yqmIKAGpjV8CxPQ/viewform","age":1,"lat":40.3329,"lng":-74.4221},{"title":"A-day State Fair","date":"2026-04-24","enddate":"2026-04-26","price":225,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Doylestown","state":"PA","zip":"18901","confirmed":true,"link":"https://delval.edu/community-members/a-day","age":76,"lat":40.3101,"lng":-75.1299},{"title":"Rancocas Woods","date":"2026-04-25","enddate":"2026-04-25","price":75,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mount Laurel","state":"NJ","zip":"08054","confirmed":true,"link":"https://rancocaswoodseventsnshops.com/","age":8,"lat":39.9312,"lng":-74.8988},{"title":"Ocean City Block Party","date":"2026-05-02","enddate":"2026-05-02","price":250,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Ocean City","state":"NJ","zip":"08226","confirmed":true,"link":"https://www.oceancityvacation.com","age":10,"lat":39.2776,"lng":-74.5746},{"title":"Funny Farm Rescue Spring Fest","date":"2026-05-03","enddate":"2026-05-03","price":100,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mays Landing","state":"NJ","zip":"08330","confirmed":true,"link":"https://funnyfarmrescue.org/spring-festival-2026/","age":4,"lat":39.4565,"lng":-74.7238},{"title":"Mothers Day Vendor and Craft Fair","date":"2026-05-09","enddate":"2026-05-09","price":35,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Cherry Hill","state":"NJ","zip":"08057","confirmed":true,"link":"https://www.facebook.com/groups/204859300361336/posts/2071396203707627/","age":1,"lat":39.9348,"lng":-75.0246},{"title":"Williamstown Spring Fair","date":"2026-05-09","enddate":"2026-05-09","price":55,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Williamstown","state":"NJ","zip":"08094","confirmed":true,"link":"https://www.facebook.com/events/817799291254875","age":5,"lat":39.6868,"lng":-74.9988},{"title":"Pitman Craft Fair","date":"2026-05-09","enddate":"2026-05-09","price":160,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Pitman","state":"NJ","zip":"08071","confirmed":true,"link":"https://www.pitmancraftshow.com/","age":33,"lat":39.7312,"lng":-75.1299},{"title":"Spring Makers Market","date":"2026-05-16","enddate":"2026-05-16","price":75,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mullica Hill","state":"NJ","zip":"08062","confirmed":true,"link":"https://www.facebook.com/MullicaHillBA/","age":2,"lat":39.7376,"lng":-75.236},{"title":"Cherry Hill Arista Care","date":"2026-05-17","enddate":"2026-05-17","price":20,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Cherry Hill","state":"NJ","zip":"08057","confirmed":false,"link":"","age":1,"lat":39.9348,"lng":-75.0246},{"title":"Collingswood May Fair","date":"2026-05-23","enddate":"2026-05-23","price":200,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Collingswood","state":"NJ","zip":"08108","confirmed":true,"link":"https://collingswood.com/things_to_do/arts_and_events/may_fair.php","age":44,"lat":39.9168,"lng":-75.071},{"title":"Rancocas Woods","date":"2026-05-30","enddate":"2026-05-30","price":75,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mount Laurel","state":"NJ","zip":"08054","confirmed":true,"link":"https://rancocaswoodseventsnshops.com/events","age":8,"lat":39.9312,"lng":-74.8988},{"title":"Moorestown Day","date":"2026-06-06","enddate":"2026-06-06","price":125,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Moorestown","state":"NJ","zip":"08057","confirmed":true,"link":"https://moorestownbusiness.com/events/","age":5,"lat":39.9687,"lng":-74.9488},{"title":"Mays Landing Craft Fair","date":"2026-06-06","enddate":"2026-06-06","price":25,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mays Landing","state":"NJ","zip":"08330","confirmed":true,"link":"","age":1,"lat":39.4565,"lng":-74.7238},{"title":"Fantasy Faire","date":"2026-06-20","enddate":"2026-06-21","price":80,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Millville","state":"NJ","zip":"08332","confirmed":true,"link":"https://www.wheatonarts.org/calendar-eventon/events/fantasy-faire/","age":5,"lat":39.4026,"lng":-75.0391},{"title":"Mullica Hill Toy Fair","date":"2026-06-21","enddate":"2026-06-21","price":100,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mullica Hill","state":"NJ","zip":"08062","confirmed":true,"link":"http://www.toyshows.org/index.html","age":5,"lat":39.7376,"lng":-75.236},{"title":"Millville Celebrates 250th","date":"2026-07-04","enddate":"2026-07-04","price":1,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Millville","state":"NJ","zip":"08332","confirmed":true,"link":"https://docs.google.com/forms/d/e/1FAIpQLSdAiLclfdt0mNTScD2-cGhXXsGY1Nq_H2k7TtwR88JmAkKvmw/viewform","age":1,"lat":39.4026,"lng":-75.0391},{"title":"Punk Rock Flea Market","date":"2026-07-11","enddate":"2026-07-12","price":120,"size":"10 x 10","indoor":true,"outdoor":true,"city":"Philadelphia","state":"PA","zip":"19102","confirmed":false,"link":"https://www.phillyprfm.com/","age":5,"lat":39.9526,"lng":-75.1652},{"title":"Burlington County Fair","date":"2026-07-21","enddate":"2026-07-25","price":600,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Burlington","state":"NJ","zip":"08022","confirmed":true,"link":"https://www.burlingtoncountyfarmfair.com/","age":80,"lat":40.0726,"lng":-74.866},{"title":"Gloucester County Fair","date":"2026-07-21","enddate":"2026-07-25","price":200,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mullica Hill","state":"NJ","zip":"08062","confirmed":true,"link":"https://www.gloucestercounty4hfairgrounds.com/","age":75,"lat":39.7376,"lng":-75.236},{"title":"Salem County Fair","date":"2026-08-04","enddate":"2026-08-08","price":200,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Salem","state":"NJ","zip":"08069","confirmed":true,"link":"https://www.salemcountyfair.com/","age":67,"lat":39.5718,"lng":-75.4688},{"title":"West Deptford Streetfest","date":"2026-08-13","enddate":"2026-08-13","price":30,"size":"10 x 10","indoor":false,"outdoor":true,"city":"West Deptford","state":"NJ","zip":"08096","confirmed":true,"link":"https://my.cheddarup.com/c/wdstreetfest/items","age":1,"lat":39.8451,"lng":-75.171},{"title":"Deptford Food Truck Festival","date":"2026-08-22","enddate":"2026-08-22","price":1,"size":"10 x 10","indoor":false,"outdoor":true,"city":"West Deptford","state":"NJ","zip":"08096","confirmed":true,"link":"","age":2,"lat":39.8451,"lng":-75.171},{"title":"West Deptford Streetfest","date":"2026-08-27","enddate":"2026-08-27","price":30,"size":"10 x 10","indoor":false,"outdoor":true,"city":"West Deptford","state":"NJ","zip":"08096","confirmed":true,"link":"https://my.cheddarup.com/c/wdstreetfest/items","age":1,"lat":39.8451,"lng":-75.171},{"title":"Williamstown Fall Craft Show","date":"2026-09-05","enddate":"2026-09-05","price":35,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Williamstown","state":"NJ","zip":"08094","confirmed":false,"link":"","age":5,"lat":39.6868,"lng":-74.9988},{"title":"Pitman Craft Fair","date":"2026-09-19","enddate":"2026-09-19","price":175,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Pitman","state":"NJ","zip":"08071","confirmed":true,"link":"https://www.pitmancraftshow.com/events/pitman-fall-craft-show-1","age":33,"lat":39.7312,"lng":-75.1299},{"title":"Smithville","date":"2026-09-19","enddate":"2026-09-20","price":200,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Smithville","state":"NJ","zip":"08201","confirmed":true,"link":"https://www.historicsmithville.com/smithville-events-2/september-events/smithville-italian-festival/","age":33,"lat":39.4851,"lng":-74.4599},{"title":"Westville Day","date":"2026-09-26","enddate":"2026-09-26","price":35,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Westville","state":"NJ","zip":"08093","confirmed":true,"link":"","age":33,"lat":39.8668,"lng":-75.1388},{"title":"Dave & Busters","date":"2026-10-03","enddate":"2026-10-03","price":35,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Blackwood","state":"NJ","zip":"08012","confirmed":false,"link":"","age":4,"lat":39.7976,"lng":-75.0652},{"title":"Blackwood Pumpkin Festival","date":"2026-10-04","enddate":"2026-10-04","price":110,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Blackwood","state":"NJ","zip":"08012","confirmed":true,"link":"https://mainstage.org/pumpkin-festival/","age":34,"lat":39.7976,"lng":-75.0652},{"title":"Deptford Fall Festival","date":"2026-10-10","enddate":"2026-10-10","price":0,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Deptford","state":"NJ","zip":"08096","confirmed":true,"link":"https://www.facebook.com/deptfordtownshipmunicipal/","age":1,"lat":39.8312,"lng":-75.1238},{"title":"Moorestown Autumn","date":"2026-10-10","enddate":"2026-10-10","price":35,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Moorestown","state":"NJ","zip":"08057","confirmed":true,"link":"https://moorestownbusiness.com/events/","age":4,"lat":39.9687,"lng":-74.9488},{"title":"Bellmawr Fall Festival","date":"2026-10-17","enddate":"2026-10-17","price":75,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Bellmawr","state":"NJ","zip":"08031","confirmed":true,"link":"","age":4,"lat":39.8668,"lng":-75.0946},{"title":"GeekFest","date":"2026-10-24","enddate":"2026-10-24","price":100,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mullica Hill","state":"NJ","zip":"08062","confirmed":true,"link":"https://sjgeekfest.com/","age":11,"lat":39.7376,"lng":-75.236},{"title":"Deptford Holiday Bazaar","date":"2026-11-07","enddate":"2026-11-07","price":0,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Deptford","state":"NJ","zip":"08096","confirmed":true,"link":"https://www.facebook.com/deptfordtownshipmunicipal/","age":1,"lat":39.8312,"lng":-75.1238},{"title":"Kingsway Regional Craft Show","date":"2026-11-07","enddate":"2026-11-07","price":110,"size":"10 x 10","indoor":true,"outdoor":true,"city":"Swedesboro","state":"NJ","zip":"08085","confirmed":false,"link":"https://www.krsd.org/our-community/kingsway-education-foundation-kef/upcoming-events/craft-show-2026","age":4,"lat":39.7476,"lng":-75.3088},{"title":"Merry Market","date":"2026-11-14","enddate":"2026-11-14","price":75,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Mullica Hill","state":"NJ","zip":"08062","confirmed":true,"link":"https://www.facebook.com/MullicaHillBA/","age":2,"lat":39.7376,"lng":-75.236},{"title":"Dickens Festival","date":"2026-12-05","enddate":"2026-12-05","price":150,"size":"10 x 10","indoor":false,"outdoor":true,"city":"Medford","state":"NJ","zip":"08055","confirmed":true,"link":"https://mainstreetmedford.com/dickens-festival-2024-photo-gallery/dickens-festival/","age":10,"lat":39.8701,"lng":-74.8238}];
+
+let originCoords=null,geocodeTimer=null,lastGeoQuery='';
+
+function haversineMiles(a,b,c,d){const R=3958.8,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
+
+function fmtDate(d,e){const FM=['January','February','March','April','May','June','July','August','September','October','November','December'],SM=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const[y,m,dy]=d.split('-').map(Number);if(d===e)return{badge:SM[m-1],full:`${FM[m-1]} ${dy}, ${y}`};const[,em,edy]=e.split('-').map(Number);if(m===em)return{badge:SM[m-1],full:`${FM[m-1]} ${dy}–${edy}, ${y}`};return{badge:SM[m-1],full:`${FM[m-1]} ${dy} – ${FM[em-1]} ${edy}, ${y}`};}
+
+function priceClass(p){if(p<=1)return'price-free';if(p<=60)return'price-low';if(p<=150)return'price-mid';return'price-high';}
+function settingBadge(e){if(e.indoor&&e.outdoor)return'<span class="badge badge-both">Indoor + Outdoor</span>';if(e.indoor)return'<span class="badge badge-indoor">Indoor</span>';return'<span class="badge badge-outdoor">Outdoor</span>';}
+
+const tbody=document.getElementById('tbody');
+const rows=EVENTS.map((e,i)=>{
+    const tr=document.createElement('tr');
+    tr.dataset.idx=i;tr.dataset.title=e.title.toLowerCase();tr.dataset.date=e.date;tr.dataset.price=e.price;
+    tr.dataset.state=e.state;tr.dataset.month=e.date.slice(5,7);tr.dataset.confirmed=e.confirmed?'yes':'no';
+    tr.dataset.indoor=e.indoor?'1':'0';tr.dataset.outdoor=e.outdoor?'1':'0';
+    tr.dataset.lat=e.lat;tr.dataset.lng=e.lng;tr.dataset.dist='99999';
+    const dt=fmtDate(e.date,e.enddate);
+    const priceStr=e.price===0?'Free':e.price===1?'~Free':`$${e.price}`;
+    const titleCell=e.link?`<a class="event-link" href="${e.link}" target="_blank">${e.title}</a>`:e.title;
+    const ageStr=e.age>=5?`<span class="age-chip">${e.age} yr event</span>`:'';
+    tr.innerHTML=`<td>${titleCell}${ageStr}</td><td><span class="badge badge-month">${dt.badge}</span> ${dt.full}</td><td class="price-cell ${priceClass(e.price)}">${priceStr}</td><td>${e.size}</td><td class="location-cell">${e.city}, ${e.state} ${e.zip}</td><td>${settingBadge(e)}</td><td>${e.confirmed?'<span class="badge badge-confirmed">✓ Confirmed</span>':'<span class="badge badge-unconfirmed">⚠ Unconfirmed</span>'}</td><td class="dist-cell" id="dist-${i}">—</td>`;
+    tbody.appendChild(tr);return tr;
+});
+
+let sortCol='date',sortAsc=true;
+function sortBy(col){
+    if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=true;}
+    document.querySelectorAll('th[id^="th-"]').forEach(th=>{th.classList.remove('sorted');th.querySelector('.si').textContent='↕';});
+    const th=document.getElementById('th-'+col);
+    if(th){th.classList.add('sorted');th.querySelector('.si').textContent=sortAsc?'↑':'↓';}
+    rows.slice().sort((a,b)=>{
+        let av,bv;
+        if(col==='title'){av=a.dataset.title;bv=b.dataset.title;}
+        else if(col==='date'){av=a.dataset.date;bv=b.dataset.date;}
+        else if(col==='price'){av=+a.dataset.price;bv=+b.dataset.price;}
+        else if(col==='location'){av=a.dataset.state+EVENTS[+a.dataset.idx].city;bv=b.dataset.state+EVENTS[+b.dataset.idx].city;}
+        else if(col==='dist'){av=+a.dataset.dist;bv=+b.dataset.dist;}
+        if(typeof av==='number')return sortAsc?av-bv:bv-av;
+        return sortAsc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
+    }).forEach(r=>tbody.appendChild(r));
+}
+
+function applyFilters(){
+    const q=document.getElementById('f-search').value.trim().toLowerCase();
+    const month=document.getElementById('f-month').value;
+    const state=document.getElementById('f-state').value;
+    const confirmed=document.getElementById('f-confirmed').value;
+    const maxPrice=document.getElementById('f-maxprice').value;
+    const miles=parseFloat(document.getElementById('f-miles').value);
+    const setting=document.getElementById('f-setting').value;
+    const hasDist=originCoords&&!isNaN(miles)&&miles>0;
+    let vis=0;
+    rows.forEach(r=>{
+        const e=EVENTS[+r.dataset.idx];
+        const ok=(!q||r.dataset.title.includes(q))&&(!month||r.dataset.month===month)&&(!state||r.dataset.state===state)&&(!confirmed||r.dataset.confirmed===confirmed)&&(!maxPrice||e.price<=parseFloat(maxPrice))&&(!setting||(setting==='indoor'&&e.indoor)||(setting==='outdoor'&&e.outdoor)||(setting==='both'&&e.indoor&&e.outdoor))&&(!hasDist||parseFloat(r.dataset.dist)<=miles);
+        r.classList.toggle('hidden',!ok);if(ok)vis++;
+    });
+    const any=q||month||state||confirmed||maxPrice||setting||hasDist;
+    document.getElementById('results-count').textContent=any?`Showing ${vis} of ${EVENTS.length} events`:`${EVENTS.length} events`;
+    document.getElementById('no-results').style.display=vis===0?'block':'none';
+}
+
+function updateDistanceCells(){
+    rows.forEach(r=>{
+        const e=EVENTS[+r.dataset.idx];
+        const cell=document.getElementById('dist-'+r.dataset.idx);
+        if(!originCoords||!e.lat){r.dataset.dist='99999';cell.textContent='—';cell.className='dist-cell';return;}
+        const d=haversineMiles(originCoords.lat,originCoords.lng,e.lat,e.lng);
+        r.dataset.dist=d.toFixed(1);
+        cell.textContent=d<1?'< 1 mi':`${Math.round(d)} mi`;
+        cell.className='dist-cell'+(d<=20?' dist-near':d>60?' dist-far':'');
+    });
+}
+
+async function geocodeOrigin(query){
+    if(!query.trim()){originCoords=null;updateDistanceCells();applyFilters();const s=document.getElementById('dist-status');s.textContent='';s.className='dist-status';return;}
+    const s=document.getElementById('dist-status');s.textContent='Looking up location…';s.className='dist-status';
+    const searchQ=(/^\d{5}$/.test(query.trim())?query.trim()+', USA':query+', USA');
+    try{
+        const resp=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ)}&format=json&limit=1`,{headers:{'Accept-Language':'en'}});
+        const data=await resp.json();
+        if(!data.length){s.textContent=`Could not find "${query}" — try "City, State" or a zip code.`;s.className='dist-status error';originCoords=null;}
+        else{originCoords={lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)};s.textContent='📍 Distances from '+data[0].display_name.split(',').slice(0,2).join(',');s.className='dist-status ok';updateDistanceCells();}
+    }catch{s.textContent='Geocoding unavailable — check your connection.';s.className='dist-status error';originCoords=null;}
+    applyFilters();
+}
+
+['f-search','f-month','f-state','f-confirmed','f-maxprice','f-miles','f-setting'].forEach(id=>{
+    document.getElementById(id).addEventListener('input',applyFilters);
+    document.getElementById(id).addEventListener('change',applyFilters);
+});
+document.getElementById('f-origin').addEventListener('input',function(){
+    const q=this.value.trim();clearTimeout(geocodeTimer);
+    if(q===lastGeoQuery)return;
+    if(!q){geocodeOrigin('');lastGeoQuery='';return;}
+    geocodeTimer=setTimeout(()=>{lastGeoQuery=q;geocodeOrigin(q);},700);
+});
+document.getElementById('btn-clear').addEventListener('click',()=>{
+    ['f-search','f-origin','f-maxprice','f-miles'].forEach(id=>document.getElementById(id).value='');
+    ['f-month','f-state','f-confirmed','f-setting'].forEach(id=>document.getElementById(id).value='');
+    originCoords=null;lastGeoQuery='';
+    const s=document.getElementById('dist-status');s.textContent='';s.className='dist-status';
+    updateDistanceCells();applyFilters();
+});
+applyFilters();
+</script>
+</body>
+</html>
