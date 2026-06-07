@@ -67,6 +67,14 @@
         .location-cell{white-space:nowrap;}
         .no-results{text-align:center;padding:2.5rem;color:var(--ink-muted);font-style:italic;display:none;}
         .age-chip{font-size:.68rem;color:var(--ink-muted);border:1px solid var(--paper-rule);border-radius:10px;padding:1px 6px;margin-left:4px;white-space:nowrap;}
+        .pagination-bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--paper-rule);}
+        .pagination-info{font-size:.8rem;color:var(--ink-muted);font-style:italic;}
+        .pagination-controls{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;}
+        .pagination-controls button,.pagination-controls select{font-family:'Source Sans 3',sans-serif;font-size:.82rem;color:var(--ink);background:var(--paper);border:1px solid var(--paper-rule);border-radius:3px;padding:.4rem .75rem;cursor:pointer;}
+        .pagination-controls button:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
+        .pagination-controls button:disabled{opacity:.4;cursor:default;}
+        .pagination-controls select{background:var(--paper-dark);padding:.4rem .5rem;}
+        .page-indicator{font-size:.82rem;color:var(--ink-muted);white-space:nowrap;}
         @media(max-width:900px){.filter-bar{grid-template-columns:1fr 1fr;}.filter-bar-row2{grid-template-columns:1fr 1fr;}}
         @media(max-width:600px){.filter-bar,.filter-bar-row2{grid-template-columns:1fr;}.craft-page{padding:1rem;}}
     </style>
@@ -185,6 +193,21 @@
         </thead>
         <tbody id="tbody"></tbody>
     </table>
+    <div class="pagination-bar" id="pagination-bar">
+        <div class="pagination-info" id="pagination-info"></div>
+        <div class="pagination-controls">
+            <button type="button" id="btn-prev">← Prev</button>
+            <span class="page-indicator" id="page-indicator"></span>
+            <button type="button" id="btn-next">Next →</button>
+            <label class="page-indicator" for="page-size">Rows</label>
+            <select id="page-size">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="200">200</option>
+            </select>
+        </div>
+    </div>
     <div class="no-results" id="no-results">No events match your filters.</div>
 </div>
 
@@ -218,24 +241,30 @@ const rows=EVENTS.map((e,i)=>{
 });
 
 let sortCol='date',sortAsc=true;
+let currentPage=1,pageSize=50,visibleRows=[];
+
+function compareRows(a,b,col,asc){
+    let av,bv;
+    if(col==='title'){av=a.dataset.title;bv=b.dataset.title;}
+    else if(col==='date'){av=a.dataset.date;bv=b.dataset.date;}
+    else if(col==='price'){av=+a.dataset.price;bv=+b.dataset.price;}
+    else if(col==='location'){av=a.dataset.state+EVENTS[+a.dataset.idx].city;bv=b.dataset.state+EVENTS[+b.dataset.idx].city;}
+    else if(col==='dist'){av=+a.dataset.dist;bv=+b.dataset.dist;}
+    if(typeof av==='number')return asc?av-bv:bv-av;
+    return asc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
+}
+
 function sortBy(col){
     if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=true;}
     document.querySelectorAll('th[id^="th-"]').forEach(th=>{th.classList.remove('sorted');th.querySelector('.si').textContent='↕';});
     const th=document.getElementById('th-'+col);
     if(th){th.classList.add('sorted');th.querySelector('.si').textContent=sortAsc?'↑':'↓';}
-    rows.slice().sort((a,b)=>{
-        let av,bv;
-        if(col==='title'){av=a.dataset.title;bv=b.dataset.title;}
-        else if(col==='date'){av=a.dataset.date;bv=b.dataset.date;}
-        else if(col==='price'){av=+a.dataset.price;bv=+b.dataset.price;}
-        else if(col==='location'){av=a.dataset.state+EVENTS[+a.dataset.idx].city;bv=b.dataset.state+EVENTS[+b.dataset.idx].city;}
-        else if(col==='dist'){av=+a.dataset.dist;bv=+b.dataset.dist;}
-        if(typeof av==='number')return sortAsc?av-bv:bv-av;
-        return sortAsc?String(av).localeCompare(String(bv)):String(bv).localeCompare(String(av));
-    }).forEach(r=>tbody.appendChild(r));
+    rows.slice().sort((a,b)=>compareRows(a,b,col,sortAsc)).forEach(r=>tbody.appendChild(r));
+    visibleRows.sort((a,b)=>compareRows(a,b,sortCol,sortAsc));
+    renderPage();
 }
 
-function applyFilters(){
+function rowMatchesFilters(r){
     const q=document.getElementById('f-search').value.trim().toLowerCase();
     const month=document.getElementById('f-month').value;
     const state=document.getElementById('f-state').value;
@@ -244,15 +273,46 @@ function applyFilters(){
     const miles=parseFloat(document.getElementById('f-miles').value);
     const setting=document.getElementById('f-setting').value;
     const hasDist=originCoords&&!isNaN(miles)&&miles>0;
-    let vis=0;
-    rows.forEach(r=>{
-        const e=EVENTS[+r.dataset.idx];
-        const ok=(!q||r.dataset.title.includes(q))&&(!month||r.dataset.month===month)&&(!state||r.dataset.state===state)&&(!confirmed||r.dataset.confirmed===confirmed)&&(!maxPrice||e.price<=parseFloat(maxPrice))&&(!setting||(setting==='indoor'&&e.indoor)||(setting==='outdoor'&&e.outdoor)||(setting==='both'&&e.indoor&&e.outdoor))&&(!hasDist||parseFloat(r.dataset.dist)<=miles);
-        r.classList.toggle('hidden',!ok);if(ok)vis++;
-    });
-    const any=q||month||state||confirmed||maxPrice||setting||hasDist;
-    document.getElementById('results-count').textContent=any?`Showing ${vis} of ${EVENTS.length} events`:`${EVENTS.length} events`;
-    document.getElementById('no-results').style.display=vis===0?'block':'none';
+    const e=EVENTS[+r.dataset.idx];
+    return (!q||r.dataset.title.includes(q))&&(!month||r.dataset.month===month)&&(!state||r.dataset.state===state)&&(!confirmed||r.dataset.confirmed===confirmed)&&(!maxPrice||e.price<=parseFloat(maxPrice))&&(!setting||(setting==='indoor'&&e.indoor)||(setting==='outdoor'&&e.outdoor)||(setting==='both'&&e.indoor&&e.outdoor))&&(!hasDist||parseFloat(r.dataset.dist)<=miles);
+}
+
+function filtersActive(){
+    const miles=parseFloat(document.getElementById('f-miles').value);
+    return !!(document.getElementById('f-search').value.trim()||document.getElementById('f-month').value||document.getElementById('f-state').value||document.getElementById('f-confirmed').value||document.getElementById('f-maxprice').value||document.getElementById('f-setting').value||(originCoords&&!isNaN(miles)&&miles>0));
+}
+
+function renderPage(){
+    const total=visibleRows.length;
+    const totalPages=Math.max(1,Math.ceil(total/pageSize));
+    if(currentPage>totalPages)currentPage=totalPages;
+    if(currentPage<1)currentPage=1;
+    const start=total===0?0:(currentPage-1)*pageSize;
+    const end=Math.min(start+pageSize,total);
+    const pageSet=new Set(visibleRows.slice(start,end));
+    rows.forEach(r=>r.classList.toggle('hidden',!pageSet.has(r)));
+    const any=filtersActive();
+    const countEl=document.getElementById('results-count');
+    if(total===0){
+        countEl.textContent=any?`No matching events (${EVENTS.length} total)`:`${EVENTS.length} events`;
+    }else if(any){
+        countEl.textContent=`Showing ${start+1}–${end} of ${total} matching events (${EVENTS.length} total)`;
+    }else{
+        countEl.textContent=`Showing ${start+1}–${end} of ${EVENTS.length} events`;
+    }
+    document.getElementById('pagination-bar').style.display=total===0?'none':'flex';
+    document.getElementById('pagination-info').textContent=total?`${total} result${total===1?'':'s'}`:'';
+    document.getElementById('page-indicator').textContent=total?`Page ${currentPage} of ${totalPages}`:'';
+    document.getElementById('btn-prev').disabled=currentPage<=1;
+    document.getElementById('btn-next').disabled=currentPage>=totalPages;
+    document.getElementById('no-results').style.display=total===0?'block':'none';
+}
+
+function applyFilters(resetPage=true){
+    if(resetPage)currentPage=1;
+    visibleRows=rows.filter(rowMatchesFilters);
+    visibleRows.sort((a,b)=>compareRows(a,b,sortCol,sortAsc));
+    renderPage();
 }
 
 function updateDistanceCells(){
@@ -297,6 +357,9 @@ document.getElementById('btn-clear').addEventListener('click',()=>{
     const s=document.getElementById('dist-status');s.textContent='';s.className='dist-status';
     updateDistanceCells();applyFilters();
 });
+document.getElementById('btn-prev').addEventListener('click',()=>{if(currentPage>1){currentPage--;renderPage();window.scrollTo({top:0,behavior:'smooth'});}});
+document.getElementById('btn-next').addEventListener('click',()=>{const totalPages=Math.max(1,Math.ceil(visibleRows.length/pageSize));if(currentPage<totalPages){currentPage++;renderPage();window.scrollTo({top:0,behavior:'smooth'});}});
+document.getElementById('page-size').addEventListener('change',function(){pageSize=parseInt(this.value,10)||50;currentPage=1;renderPage();});
 applyFilters();
 </script>
 </body>
