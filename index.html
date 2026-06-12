@@ -23,7 +23,7 @@
         .craft-header{border-bottom:2px solid var(--accent);margin-bottom:1.5rem;padding-bottom:1rem;}
         h1{font-family:'Playfair Display',serif;color:var(--accent);margin:0 0 1rem 0;font-size:2rem;}
         .filter-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem;}
-        .filter-bar-row2{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:.6rem;margin-bottom:.75rem;align-items:end;}
+        .filter-bar-row2{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:.6rem;margin-bottom:.75rem;align-items:end;}
         .filter-group{display:flex;flex-direction:column;gap:3px;}
         .filter-group label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:600;}
         input[type="text"],input[type="number"],select{font-family:'Source Sans 3',sans-serif;font-size:.875rem;color:var(--ink);background:var(--paper);border:1px solid var(--paper-rule);border-radius:3px;padding:.45rem .65rem;outline:none;width:100%;transition:border-color .15s;}
@@ -75,12 +75,23 @@
         .pagination-controls button:disabled{opacity:.4;cursor:default;}
         .pagination-controls select{background:var(--paper-dark);padding:.4rem .5rem;}
         .page-indicator{font-size:.82rem;color:var(--ink-muted);white-space:nowrap;}
+        .site-nav{display:flex;gap:.5rem;margin-bottom:1rem;}
+        .site-nav a{font-size:.85rem;font-weight:600;text-decoration:none;color:var(--ink-muted);padding:.45rem .9rem;border:1px solid var(--paper-rule);border-radius:3px;background:var(--paper);}
+        .site-nav a:hover{border-color:var(--accent);color:var(--accent);}
+        .site-nav a.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+        .badge-type-craft{background:#e8f5e0;color:#2a5a1a;border:1px solid #b0d898;}
+        .badge-type-fest{background:#f5ebe0;color:#8b4513;border:1px solid #d8b898;}
+        .badge-type-con{background:#ddeeff;color:#1a4a7a;border:1px solid #aaccee;}
         @media(max-width:900px){.filter-bar{grid-template-columns:1fr 1fr;}.filter-bar-row2{grid-template-columns:1fr 1fr;}}
         @media(max-width:600px){.filter-bar,.filter-bar-row2{grid-template-columns:1fr;}.craft-page{padding:1rem;}}
     </style>
 </head>
 <body>
 <div class="craft-page">
+    <nav class="site-nav">
+        <a href="index.html" class="active">Event List</a>
+        <a href="map.html">Nearby Map</a>
+    </nav>
     <div class="craft-header">
         <h1>✦ All Events</h1>
         <div class="filter-bar">
@@ -167,6 +178,14 @@
                 </div>
             </div>
             <div class="filter-group"><label>Max Table Price ($)</label><input type="number" id="f-maxprice" min="0" placeholder="e.g. 100" /></div>
+            <div class="filter-group"><label>Event Type</label>
+                <select id="f-type">
+                    <option value="">All types</option>
+                    <option value="craft">Craft Fairs</option>
+                    <option value="festival">Festivals</option>
+                    <option value="convention">Conventions</option>
+                </select>
+            </div>
             <div class="filter-group"><label>Setting</label>
                 <select id="f-setting">
                     <option value="">All settings</option>
@@ -187,8 +206,9 @@
                 <th onclick="sortBy('price')" id="th-price">Table Price <i class="si">↕</i></th>
                 <th>Size</th>
                 <th onclick="sortBy('location')" id="th-location">Location <i class="si">↕</i></th>
+                <th>Type</th>
                 <th>Setting</th>
-                <th>Date</th>
+                <th>Status</th>
                 <th onclick="sortBy('dist')" id="th-dist">Distance <i class="si">↕</i></th>
             </tr>
         </thead>
@@ -212,32 +232,30 @@
     <div class="no-results" id="no-results">No events match your filters.</div>
 </div>
 
-<!-- Data extracted from original page -->
 <script src="events-data.js"></script>
+<script src="zip-coords.js"></script>
+<script src="shared.js"></script>
 
-<!-- Original logic (unchanged except data is now external) -->
 <script>
 let originCoords=null,geocodeTimer=null,lastGeoQuery='';
-
-function haversineMiles(a,b,c,d){const R=3958.8,dL=(c-a)*Math.PI/180,dl=(d-b)*Math.PI/180,x=Math.sin(dL/2)**2+Math.cos(a*Math.PI/180)*Math.cos(c*Math.PI/180)*Math.sin(dl/2)**2;return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));}
-
-function fmtDate(d,e){const FM=['January','February','March','April','May','June','July','August','September','October','November','December'],SM=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const[y,m,dy]=d.split('-').map(Number);if(d===e)return{badge:SM[m-1],full:`${FM[m-1]} ${dy}, ${y}`};const[,em,edy]=e.split('-').map(Number);if(m===em)return{badge:SM[m-1],full:`${FM[m-1]} ${dy}–${edy}, ${y}`};return{badge:SM[m-1],full:`${FM[m-1]} ${dy} – ${FM[em-1]} ${edy}, ${y}`};}
+enrichEvents(EVENTS);
 
 function priceClass(p){if(p<=1)return'price-free';if(p<=60)return'price-low';if(p<=150)return'price-mid';return'price-high';}
 function settingBadge(e){if(e.indoor&&e.outdoor)return'<span class="badge badge-both">Indoor + Outdoor</span>';if(e.indoor)return'<span class="badge badge-indoor">Indoor</span>';return'<span class="badge badge-outdoor">Outdoor</span>';}
+function typeBadge(type){const cls=type==='craft'?'badge-type-craft':type==='festival'?'badge-type-fest':'badge-type-con';return`<span class="badge ${cls}">${eventTypeLabel(type)}</span>`;}
 
 const tbody=document.getElementById('tbody');
 const rows=EVENTS.map((e,i)=>{
     const tr=document.createElement('tr');
     tr.dataset.idx=i;tr.dataset.title=e.title.toLowerCase();tr.dataset.date=e.date;tr.dataset.price=e.price;
     tr.dataset.state=e.state;tr.dataset.month=e.date.slice(5,7);tr.dataset.confirmed=e.confirmed?'yes':'no';
-    tr.dataset.indoor=e.indoor?'1':'0';tr.dataset.outdoor=e.outdoor?'1':'0';
-    tr.dataset.lat=e.lat;tr.dataset.lng=e.lng;tr.dataset.dist='99999';
+    tr.dataset.indoor=e.indoor?'1':'0';tr.dataset.outdoor=e.outdoor?'1':'0';tr.dataset.type=e.eventType;
+    tr.dataset.dist='99999';
     const dt=fmtDate(e.date,e.enddate);
     const priceStr=e.price===0?'Free':e.price===1?'~Free':`$${e.price}`;
     const titleCell=e.link?`<a class="event-link" href="${e.link}" target="_blank">${e.title}</a>`:e.title;
     const ageStr=e.age>=5?`<span class="age-chip">${e.age} yr event</span>`:'';
-    tr.innerHTML=`<td>${titleCell}${ageStr}</td><td><span class="badge badge-month">${dt.badge}</span> ${dt.full}</td><td class="price-cell ${priceClass(e.price)}">${priceStr}</td><td>${e.size}</td><td class="location-cell">${e.city}, ${e.state} ${e.zip}</td><td>${settingBadge(e)}</td><td>${e.confirmed?'<span class="badge badge-confirmed">✓ Confirmed</span>':'<span class="badge badge-unconfirmed">⚠ Unconfirmed</span>'}</td><td class="dist-cell" id="dist-${i}">—</td>`;
+    tr.innerHTML=`<td>${titleCell}${ageStr}</td><td><span class="badge badge-month">${dt.badge}</span> ${dt.full}</td><td class="price-cell ${priceClass(e.price)}">${priceStr}</td><td>${e.size}</td><td class="location-cell">${e.city}, ${e.state} ${e.zip||''}</td><td>${typeBadge(e.eventType)}</td><td>${settingBadge(e)}</td><td>${e.confirmed?'<span class="badge badge-confirmed">✓ Confirmed</span>':'<span class="badge badge-unconfirmed">⚠ Unconfirmed</span>'}</td><td class="dist-cell" id="dist-${i}">—</td>`;
     tbody.appendChild(tr);return tr;
 });
 
@@ -273,14 +291,15 @@ function rowMatchesFilters(r){
     const maxPrice=document.getElementById('f-maxprice').value;
     const miles=parseFloat(document.getElementById('f-miles').value);
     const setting=document.getElementById('f-setting').value;
+    const eventType=document.getElementById('f-type').value;
     const hasDist=originCoords&&!isNaN(miles)&&miles>0;
     const e=EVENTS[+r.dataset.idx];
-    return (!q||r.dataset.title.includes(q))&&(!month||r.dataset.month===month)&&(!state||r.dataset.state===state)&&(!confirmed||r.dataset.confirmed===confirmed)&&(!maxPrice||e.price<=parseFloat(maxPrice))&&(!setting||(setting==='indoor'&&e.indoor)||(setting==='outdoor'&&e.outdoor)||(setting==='both'&&e.indoor&&e.outdoor))&&(!hasDist||parseFloat(r.dataset.dist)<=miles);
+    return (!q||r.dataset.title.includes(q))&&(!month||r.dataset.month===month)&&(!state||r.dataset.state===state)&&(!confirmed||r.dataset.confirmed===confirmed)&&(!maxPrice||e.price<=parseFloat(maxPrice))&&(!eventType||r.dataset.type===eventType)&&(!setting||(setting==='indoor'&&e.indoor)||(setting==='outdoor'&&e.outdoor)||(setting==='both'&&e.indoor&&e.outdoor))&&(!hasDist||parseFloat(r.dataset.dist)<=miles);
 }
 
 function filtersActive(){
     const miles=parseFloat(document.getElementById('f-miles').value);
-    return !!(document.getElementById('f-search').value.trim()||document.getElementById('f-month').value||document.getElementById('f-state').value||document.getElementById('f-confirmed').value||document.getElementById('f-maxprice').value||document.getElementById('f-setting').value||(originCoords&&!isNaN(miles)&&miles>0));
+    return !!(document.getElementById('f-search').value.trim()||document.getElementById('f-month').value||document.getElementById('f-state').value||document.getElementById('f-confirmed').value||document.getElementById('f-maxprice').value||document.getElementById('f-type').value||document.getElementById('f-setting').value||(originCoords&&!isNaN(miles)&&miles>0));
 }
 
 function renderPage(){
@@ -320,8 +339,9 @@ function updateDistanceCells(){
     rows.forEach(r=>{
         const e=EVENTS[+r.dataset.idx];
         const cell=document.getElementById('dist-'+r.dataset.idx);
-        if(!originCoords||!e.lat){r.dataset.dist='99999';cell.textContent='—';cell.className='dist-cell';return;}
-        const d=haversineMiles(originCoords.lat,originCoords.lng,e.lat,e.lng);
+        const coords=getEventCoords(e);
+        if(!originCoords||!coords){r.dataset.dist='99999';cell.textContent='—';cell.className='dist-cell';return;}
+        const d=haversineMiles(originCoords.lat,originCoords.lng,coords.lat,coords.lng);
         r.dataset.dist=d.toFixed(1);
         cell.textContent=d<1?'< 1 mi':`${Math.round(d)} mi`;
         cell.className='dist-cell'+(d<=20?' dist-near':d>60?' dist-far':'');
@@ -341,7 +361,7 @@ async function geocodeOrigin(query){
     applyFilters();
 }
 
-['f-search','f-month','f-state','f-confirmed','f-maxprice','f-miles','f-setting'].forEach(id=>{
+['f-search','f-month','f-state','f-confirmed','f-maxprice','f-miles','f-setting','f-type'].forEach(id=>{
     document.getElementById(id).addEventListener('input',applyFilters);
     document.getElementById(id).addEventListener('change',applyFilters);
 });
@@ -353,7 +373,7 @@ document.getElementById('f-origin').addEventListener('input',function(){
 });
 document.getElementById('btn-clear').addEventListener('click',()=>{
     ['f-search','f-origin','f-maxprice','f-miles'].forEach(id=>document.getElementById(id).value='');
-    ['f-month','f-state','f-confirmed','f-setting'].forEach(id=>document.getElementById(id).value='');
+    ['f-month','f-state','f-confirmed','f-setting','f-type'].forEach(id=>document.getElementById(id).value='');
     originCoords=null;lastGeoQuery='';
     const s=document.getElementById('dist-status');s.textContent='';s.className='dist-status';
     updateDistanceCells();applyFilters();
