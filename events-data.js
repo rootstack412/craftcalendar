@@ -52720,3 +52720,59 @@ const EVENTS=[
     "lng": null
   }
 ];
+
+// Shared helpers (bundled)
+function haversineMiles(lat1, lng1, lat2, lng2) {
+  const R = 3958.8;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const x = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+}
+
+function classifyEventType(title) {
+  const t = (title || "").toLowerCase();
+  if (/\b(comic[\s-]?con|fan[\s-]?con|anime[\s-]?con|\bcon\b|convention|expo\b|exhibit hall|symposium|hobby[\s-]?con|nerdforce|geekfest|fan[\s-]?fest|fanfest|cosplay|pop[\s-]?con|game[\s-]?con|games[\s-]?con|mini[\s-]?con|repticon|gun show)\b/.test(t)) {
+    return "convention";
+  }
+  if (/\b(craft[\s-]?(fair|show|market)|artisan|maker[\s-]?(fair|market|fest)|handmade|art[\s-]?(fair|show|fest)|vendor[\s-]?fair|pop[\s-]?up[\s-]?(market|gallery)|holiday[\s-]?(market|gift[\s-]?fest)|christmas[\s-]?(market|show)|farmers?[\s-]?market|makers?[\s-]?market|street[\s-]?fair|bazaar|vendor)\b/.test(t)) {
+    return "craft";
+  }
+  if (/\b(festival|fest\b|\bfair\b|carnival|jubilee|celebration|ribfest|brewfest|music[\s-]?fest|parade)\b/.test(t)) {
+    return "festival";
+  }
+  if (/\bmarket\b/.test(t)) return "craft";
+  return "festival";
+}
+
+function getEventCoords(event) {
+  if (event.lat != null && event.lng != null && !Number.isNaN(event.lat)) {
+    return { lat: +event.lat, lng: +event.lng };
+  }
+  if (event.zip && typeof ZIP_COORDS !== "undefined" && ZIP_COORDS[event.zip]) {
+    return ZIP_COORDS[event.zip];
+  }
+  return null;
+}
+
+function eventTypeLabel(type) {
+  return type === "craft" ? "Craft Fair" : type === "festival" ? "Festival" : "Convention";
+}
+
+function fmtDate(d, e) {
+  const FM = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const SM = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const [y, m, dy] = d.split("-").map(Number);
+  if (d === e) return { badge: SM[m - 1], full: `${FM[m - 1]} ${dy}, ${y}` };
+  const [, em, edy] = e.split("-").map(Number);
+  if (m === em) return { badge: SM[m - 1], full: `${FM[m - 1]} ${dy}–${edy}, ${y}` };
+  return { badge: SM[m - 1], full: `${FM[m - 1]} ${dy} – ${FM[em - 1]} ${edy}, ${y}` };
+}
+
+// Attach type to each event once
+function enrichEvents(events) {
+  events.forEach((e) => { e.eventType = classifyEventType(e.title); });
+  return events;
+}
+
