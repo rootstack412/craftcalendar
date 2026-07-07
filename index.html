@@ -23,7 +23,7 @@
         .craft-header{border-bottom:2px solid var(--accent);margin-bottom:1.5rem;padding-bottom:1rem;}
         h1{font-family:'Playfair Display',serif;color:var(--accent);margin:0 0 1rem 0;font-size:2rem;}
         .filter-bar{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.6rem;margin-bottom:.6rem;}
-        .filter-bar-row2{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:.6rem;margin-bottom:.75rem;align-items:end;}
+        .filter-bar-row2{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto auto;gap:.6rem;margin-bottom:.75rem;align-items:end;}
         .filter-group{display:flex;flex-direction:column;gap:3px;}
         .filter-group label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-muted);font-weight:600;}
         input[type="text"],input[type="number"],select{font-family:'Source Sans 3',sans-serif;font-size:.875rem;color:var(--ink);background:var(--paper);border:1px solid var(--paper-rule);border-radius:3px;padding:.45rem .65rem;outline:none;width:100%;transition:border-color .15s;}
@@ -85,6 +85,8 @@
         .site-contact{margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--paper-rule);font-size:.82rem;color:var(--ink-muted);text-align:center;}
         .site-contact a{color:var(--accent);text-decoration:none;}
         .site-contact a:hover{text-decoration:underline;}
+        .filter-toggle .toggle-label{display:flex;align-items:center;gap:.5rem;font-size:.875rem;color:var(--ink);cursor:pointer;padding:.45rem 0;white-space:nowrap;user-select:none;}
+        .filter-toggle input[type="checkbox"]{width:1rem;height:1rem;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
         @media(max-width:900px){.filter-bar{grid-template-columns:1fr 1fr;}.filter-bar-row2{grid-template-columns:1fr 1fr;}}
         @media(max-width:600px){.filter-bar,.filter-bar-row2{grid-template-columns:1fr;}.craft-page{padding:1rem;}}
     </style>
@@ -196,6 +198,13 @@
                     <option value="both">Indoor + Outdoor</option>
                 </select>
             </div>
+            <div class="filter-group filter-toggle">
+                <label>Show</label>
+                <label class="toggle-label" for="f-future">
+                    <input type="checkbox" id="f-future" />
+                    Future events only
+                </label>
+            </div>
             <button class="btn-clear" id="btn-clear">✕ Clear all</button>
         </div>
         <div class="dist-status" id="dist-status"></div>
@@ -243,6 +252,8 @@
 let originCoords=null,geocodeTimer=null,lastGeoQuery='';
 enrichEvents(EVENTS);
 
+function todayISO(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+
 function priceClass(p){if(p<=1)return'price-free';if(p<=60)return'price-low';if(p<=150)return'price-mid';return'price-high';}
 function settingBadge(e){if(e.indoor&&e.outdoor)return'<span class="badge badge-both">Indoor + Outdoor</span>';if(e.indoor)return'<span class="badge badge-indoor">Indoor</span>';return'<span class="badge badge-outdoor">Outdoor</span>';}
 function typeBadge(type){const cls=type==='craft'?'badge-type-craft':type==='festival'?'badge-type-fest':'badge-type-con';return`<span class="badge ${cls}">${eventTypeLabel(type)}</span>`;}
@@ -250,7 +261,7 @@ function typeBadge(type){const cls=type==='craft'?'badge-type-craft':type==='fes
 const tbody=document.getElementById('tbody');
 const rows=EVENTS.map((e,i)=>{
     const tr=document.createElement('tr');
-    tr.dataset.idx=i;tr.dataset.title=e.title.toLowerCase();tr.dataset.date=e.date;tr.dataset.price=e.price;
+    tr.dataset.idx=i;tr.dataset.title=e.title.toLowerCase();tr.dataset.date=e.date;tr.dataset.enddate=e.enddate;tr.dataset.price=e.price;
     tr.dataset.state=e.state;tr.dataset.month=e.date.slice(5,7);tr.dataset.confirmed=e.confirmed?'yes':'no';
     tr.dataset.indoor=e.indoor?'1':'0';tr.dataset.outdoor=e.outdoor?'1':'0';tr.dataset.type=e.eventType;
     tr.dataset.dist='99999';
@@ -295,14 +306,15 @@ function rowMatchesFilters(r){
     const miles=parseFloat(document.getElementById('f-miles').value);
     const setting=document.getElementById('f-setting').value;
     const eventType=document.getElementById('f-type').value;
+    const futureOnly=document.getElementById('f-future').checked;
     const hasDist=originCoords&&!isNaN(miles)&&miles>0;
     const e=EVENTS[+r.dataset.idx];
-    return (!q||r.dataset.title.includes(q))&&(!month||r.dataset.month===month)&&(!state||r.dataset.state===state)&&(!confirmed||r.dataset.confirmed===confirmed)&&(!maxPrice||e.price<=parseFloat(maxPrice))&&(!eventType||r.dataset.type===eventType)&&(!setting||(setting==='indoor'&&e.indoor)||(setting==='outdoor'&&e.outdoor)||(setting==='both'&&e.indoor&&e.outdoor))&&(!hasDist||parseFloat(r.dataset.dist)<=miles);
+    return (!q||r.dataset.title.includes(q))&&(!month||r.dataset.month===month)&&(!state||r.dataset.state===state)&&(!confirmed||r.dataset.confirmed===confirmed)&&(!maxPrice||e.price<=parseFloat(maxPrice))&&(!eventType||r.dataset.type===eventType)&&(!setting||(setting==='indoor'&&e.indoor)||(setting==='outdoor'&&e.outdoor)||(setting==='both'&&e.indoor&&e.outdoor))&&(!futureOnly||r.dataset.enddate>=todayISO())&&(!hasDist||parseFloat(r.dataset.dist)<=miles);
 }
 
 function filtersActive(){
     const miles=parseFloat(document.getElementById('f-miles').value);
-    return !!(document.getElementById('f-search').value.trim()||document.getElementById('f-month').value||document.getElementById('f-state').value||document.getElementById('f-confirmed').value||document.getElementById('f-maxprice').value||document.getElementById('f-type').value||document.getElementById('f-setting').value||(originCoords&&!isNaN(miles)&&miles>0));
+    return !!(document.getElementById('f-search').value.trim()||document.getElementById('f-month').value||document.getElementById('f-state').value||document.getElementById('f-confirmed').value||document.getElementById('f-maxprice').value||document.getElementById('f-type').value||document.getElementById('f-setting').value||document.getElementById('f-future').checked||(originCoords&&!isNaN(miles)&&miles>0));
 }
 
 function renderPage(){
@@ -374,9 +386,11 @@ document.getElementById('f-origin').addEventListener('input',function(){
     if(!q){geocodeOrigin('');lastGeoQuery='';return;}
     geocodeTimer=setTimeout(()=>{lastGeoQuery=q;geocodeOrigin(q);},700);
 });
+document.getElementById('f-future').addEventListener('change',applyFilters);
 document.getElementById('btn-clear').addEventListener('click',()=>{
     ['f-search','f-origin','f-maxprice','f-miles'].forEach(id=>document.getElementById(id).value='');
     ['f-month','f-state','f-confirmed','f-setting','f-type'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('f-future').checked=false;
     originCoords=null;lastGeoQuery='';
     const s=document.getElementById('dist-status');s.textContent='';s.className='dist-status';
     updateDistanceCells();applyFilters();
